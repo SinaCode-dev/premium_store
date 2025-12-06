@@ -24,6 +24,7 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ["author", "body", "datetime_created"]
+        read_only_fields = ["author"]
 
 
 class UpdateCartItemSerializer(serializers.ModelSerializer):
@@ -90,4 +91,4 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class DiscountSerializer(serializers.ModelSerializer):
     class Meta:
         model = Discount
-        fields = ["id", "name"]
+        fields = ["id", "name", "discount_percent"]

@@ -1,7 +1,7 @@
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.mixins import CreateModelMixin, RetrieveModelMixin, DestroyModelMixin
 
 from .serializers import AddCartItemSerializer, ApplicationSerializer, ServiceSerializer, CommentSerializer, CartSerializer, CartItemSerializer, OrderSerializer, OrderItemSerializer, DiscountSerializer, UpdateCartItemSerializer
@@ -19,15 +19,24 @@ class ServiceViewSet(ModelViewSet):
     def get_queryset(self):
         application_pk = self.kwargs["application_pk"]
         return Service.objects.filter(application_id=application_pk).all()
+    
+    def perform_create(self, serializer):
+        application = get_object_or_404(Application, pk=self.kwargs['application_pk'])
+        serializer.save(application=application)
 
 
 class CommentViewSet(ModelViewSet):
     serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         application_pk = self.kwargs["application_pk"]
         service_pk = self.kwargs["service_pk"]
         return Comment.objects.filter(service_id=service_pk, service__application_id=application_pk).all()
+    
+    def perform_create(self, serializer):
+        service = get_object_or_404(Service, pk=self.kwargs['service_pk'])
+        serializer.save(author=self.request.user, service=service)
 
 
 class CartViewSet(CreateModelMixin, RetrieveModelMixin, DestroyModelMixin, GenericViewSet):
@@ -75,8 +84,8 @@ class DiscountViewSet(ModelViewSet):
 
 class DiscountServicesViewSet(ModelViewSet):
     serializer_class = ServiceSerializer
+    http_method_names = ["get"]
 
     def get_queryset(self):
         discount_pk = self.kwargs["discount_pk"]
         return Service.objects.filter(discounts_id=discount_pk).all()
-    
