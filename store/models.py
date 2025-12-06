@@ -1,8 +1,10 @@
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 
-from uuid import uuid4
 from phonenumber_field.modelfields import PhoneNumberField
+
+from uuid import uuid4
 
 
 
@@ -32,7 +34,6 @@ class Application(models.Model):
 
 class Discount(models.Model):
     discount_percent = models.FloatField()
-    code = models.CharField(max_length=6)
     name = models.CharField(max_length=250)
 
     def __str__(self):
@@ -75,10 +76,17 @@ class Cart(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid4)
     datetime_created = models.DateTimeField(auto_now_add=True)
 
+    def get_total_price(self):
+        return sum(item.service.price * item.quantity for item in self.items.all())
+
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items")
     service = models.ForeignKey(Service, on_delete=models.CASCADE)
+    quantity = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)])
+
+    class Meta:
+        unique_together = [['cart', 'service']]
 
 
 class Order(models.Model):

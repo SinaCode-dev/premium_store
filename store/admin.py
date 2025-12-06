@@ -21,7 +21,7 @@ class ApplicationAdmin(admin.ModelAdmin):
 
 @admin.register(Discount)
 class DiscountAdmin(admin.ModelAdmin):
-    list_display = ["discount_percent", "code", "name"]
+    list_display = ["discount_percent", "name"]
 
 
 class CommentsInline(admin.TabularInline):
