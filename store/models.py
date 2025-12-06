@@ -1,5 +1,6 @@
+from decimal import Decimal
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 from phonenumber_field.modelfields import PhoneNumberField
@@ -33,7 +34,11 @@ class Application(models.Model):
 
 
 class Discount(models.Model):
-    discount_percent = models.FloatField()
+    discount_percent = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Enter the discount percentage"
+    )
     name = models.CharField(max_length=250)
 
     def __str__(self):
@@ -49,6 +54,12 @@ class Service(models.Model):
     datetime_created = models.DateTimeField(auto_now_add=True)
     datetime_modified = models.DateTimeField(auto_now=True)
     discounts = models.ForeignKey(Discount, null=True, blank=True, on_delete=models.SET_NULL)
+
+    def get_discounted_price(self):
+        if self.discounts:
+            discount_factor = Decimal(1) - (self.discounts.discount_percent / Decimal(100))
+            return self.price * discount_factor
+        return self.price
 
     def __str__(self):
         return self.name
@@ -77,7 +88,7 @@ class Cart(models.Model):
     datetime_created = models.DateTimeField(auto_now_add=True)
 
     def get_total_price(self):
-        return sum(item.service.price * item.quantity for item in self.items.all())
+        return sum(item.get_item_total_price() for item in self.items.all())
 
 
 class CartItem(models.Model):
@@ -85,6 +96,9 @@ class CartItem(models.Model):
     service = models.ForeignKey(Service, on_delete=models.CASCADE)
     quantity = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)])
 
+    def get_item_total_price(self):
+        return self.quantity * self.service.get_discounted_price()
+    
     class Meta:
         unique_together = [['cart', 'service']]
 

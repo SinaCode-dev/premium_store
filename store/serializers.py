@@ -10,9 +10,14 @@ class ApplicationSerializer(serializers.ModelSerializer):
 
 
 class ServiceSerializer(serializers.ModelSerializer):
+    discounted_price = serializers.SerializerMethodField()
+
     class Meta:
         model = Service
-        fields = ["id", "name", "description", "price"]
+        fields = ["id", "name", "description", "price", "discounted_price"]
+    
+    def get_discounted_price(self, obj):
+        return obj.get_discounted_price()
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -53,8 +58,8 @@ class CartItemSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = ["id", "service", "quantity", "item_total_price"]
 
-    def get_item_total_price(self, cart_item):
-        return cart_item.quantity * cart_item.service.price
+    def get_item_total_price(self, obj):
+        return obj.get_item_total_price()
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -66,8 +71,8 @@ class CartSerializer(serializers.ModelSerializer):
         fields = ["id", "datetime_created", "items", "total_cart_price"]
         read_only_fields = ["id"]
 
-    def get_total_cart_price(self, cart):
-        return sum(item.quantity * item.service.price for item in cart.items.all())
+    def get_total_cart_price(self, obj):
+        return obj.get_total_price()
 
 
 class OrderSerializer(serializers.ModelSerializer):
