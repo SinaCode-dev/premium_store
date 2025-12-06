@@ -1,3 +1,6 @@
+from django.conf import settings
+from django.utils.safestring import mark_safe
+
 from rest_framework import serializers
 
 from .models import Application, Service, Comment, Cart, CartItem, Order, OrderItem, Discount
@@ -11,13 +14,29 @@ class ApplicationSerializer(serializers.ModelSerializer):
 
 class ServiceSerializer(serializers.ModelSerializer):
     discounted_price = serializers.SerializerMethodField()
+    image = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Service
-        fields = ["id", "name", "description", "price", "discounted_price"]
+        fields = ["id", "name", "description", "price", "discounts", "discounted_price", "image", "image_url"]
     
     def get_discounted_price(self, obj):
         return obj.get_discounted_price()
+    
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        path = obj.image.url if obj.image and hasattr(obj.image, 'url') else settings.MEDIA_URL + 'services/images/default_service.jpg'
+        if request is not None:
+            return request.build_absolute_uri(path)
+        else:
+            base_url = 'http://127.0.0.1:8000'
+            return base_url + path
+    
+    def update(self, instance, validated_data):
+        if 'image' in validated_data and validated_data['image'] is None:
+            validated_data.pop('image')
+        return super().update(instance, validated_data)
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -31,6 +50,7 @@ class UpdateCartItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ["quantity"]
+
 
 class AddCartItemSerializer(serializers.ModelSerializer):
     class Meta:

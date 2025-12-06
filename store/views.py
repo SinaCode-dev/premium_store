@@ -1,11 +1,13 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 
-from rest_framework.viewsets import ModelViewSet, GenericViewSet
-from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.mixins import CreateModelMixin, RetrieveModelMixin, DestroyModelMixin
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.viewsets import ModelViewSet, GenericViewSet
 
-from .serializers import AddCartItemSerializer, ApplicationSerializer, ServiceSerializer, CommentSerializer, CartSerializer, CartItemSerializer, OrderSerializer, OrderItemSerializer, DiscountSerializer, UpdateCartItemSerializer
 from .models import Application, Service, Comment, Cart, CartItem, Order, OrderItem, Discount
+from .serializers import AddCartItemSerializer, ApplicationSerializer, ServiceSerializer, CommentSerializer, CartSerializer, CartItemSerializer, OrderSerializer, OrderItemSerializer, DiscountSerializer, UpdateCartItemSerializer
+
 
 
 class ApplicationViewSet(ModelViewSet):
@@ -15,6 +17,7 @@ class ApplicationViewSet(ModelViewSet):
 
 class ServiceViewSet(ModelViewSet):
     serializer_class = ServiceSerializer
+    parser_classes = [MultiPartParser, FormParser]
     
     def get_queryset(self):
         application_pk = self.kwargs["application_pk"]

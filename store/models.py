@@ -48,6 +48,7 @@ class Discount(models.Model):
 class Service(models.Model):
     name = models.CharField(max_length=250)
     application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='services')
+    image = models.ImageField(upload_to='services/images/', null=True, blank=True, default='services/images/default_service.jpg')
     slug = models.SlugField()
     description = models.TextField()
     price = models.DecimalField(max_digits=5, decimal_places=2)
