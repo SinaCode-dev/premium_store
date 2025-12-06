@@ -17,17 +17,26 @@ class Customer(models.Model):
         help_text="Iranian format phone number(example: 09123456789)",
     )
 
+    def __str__(self):
+        return self.user.username
+
 
 class Application(models.Model):
     title = models.CharField(max_length=250)
     description = models.TextField()
     top_service = models.ForeignKey('Service', null=True, blank=True, on_delete=models.SET_NULL, related_name='applications')
 
+    def __str__(self):
+        return self.title
+
 
 class Discount(models.Model):
     discount_percent = models.FloatField()
     code = models.CharField(max_length=6)
     name = models.CharField(max_length=250)
+
+    def __str__(self):
+        return self.name
 
 
 class Service(models.Model):
@@ -39,6 +48,9 @@ class Service(models.Model):
     datetime_created = models.DateTimeField(auto_now_add=True)
     datetime_modified = models.DateTimeField(auto_now=True)
     discounts = models.ForeignKey(Discount, null=True, blank=True, on_delete=models.SET_NULL)
+
+    def __str__(self):
+        return self.name
 
 
 class Comment(models.Model):
