@@ -14,8 +14,8 @@ class Customer(models.Model):
     phone_number = PhoneNumberField(
         region = "IR",
         unique=True,
-        blank=False,
-        null=False,
+        blank=True,
+        null=True,
         verbose_name="Phone number",
         help_text="Iranian format phone number(example: 09123456789)",
     )
@@ -123,3 +123,4 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="items")
     service = models.ForeignKey(Service, on_delete=models.PROTECT)
     price = models.DecimalField(max_digits=5, decimal_places=2)
+    quantity = models.PositiveSmallIntegerField(default=1)

@@ -8,6 +8,7 @@ router.register("applications", views.ApplicationViewSet, basename="application"
 router.register("carts", views.CartViewSet, basename="cart")
 router.register("orders", views.OrderViewSet, basename="order")
 router.register("discounts", views.DiscountViewSet, basename="discount")
+router.register("customers", views.CustomerViewSet, basename="customer")
 
 
 services_router = routers.NestedDefaultRouter(router, "applications", lookup="application")
