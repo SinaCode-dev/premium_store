@@ -4,7 +4,9 @@ from django.utils.safestring import mark_safe
 
 from rest_framework import serializers
 
-from .models import Application, Customer, Service, Comment, Cart, CartItem, Order, OrderItem, Discount
+import re
+
+from .models import Application, Customer, Service, Comment, Cart, CartItem, Order, OrderItem, Discount, ServiceField
 
 
 class ApplicationSerializer(serializers.ModelSerializer):
@@ -13,14 +15,21 @@ class ApplicationSerializer(serializers.ModelSerializer):
         fields = ["title", "description", "top_service"]
 
 
+class ServiceFieldSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceField
+        fields = ['field_name', 'field_type', 'is_required', 'label']
+
+
 class ServiceSerializer(serializers.ModelSerializer):
     discounted_price = serializers.SerializerMethodField()
     image = serializers.ImageField(write_only=True, required=False, allow_null=True)
     image_url = serializers.SerializerMethodField()
+    required_fields = ServiceFieldSerializer(many=True, read_only=True)
 
     class Meta:
         model = Service
-        fields = ["id", "name", "description", "price", "discounts", "discounted_price", "image", "image_url"]
+        fields = ["id", "name", "description", "price", "discounts", "discounted_price", "image", "image_url", "required_fields"]
     
     def get_discounted_price(self, obj):
         return obj.get_discounted_price()
@@ -47,38 +56,121 @@ class CommentSerializer(serializers.ModelSerializer):
         read_only_fields = ["author"]
 
 
-class UpdateCartItemSerializer(serializers.ModelSerializer):
+class CartItemExtraDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
-        fields = ["quantity"]
+        fields = ['extra_data']
+        extra_kwargs = {'extra_data': {'required': True}}
 
 
 class AddCartItemSerializer(serializers.ModelSerializer):
+    extra_data = serializers.JSONField(required=False, default=dict, allow_null=True)
+
     class Meta:
         model = CartItem
-        fields = ["id", "service", "quantity"]
-    
-    def create(self, validated_data):
-        cart_id = self.context['cart_pk']
-        service = validated_data.get('service')
-        quantity = validated_data.get('quantity')
+        fields = ["id", "service", "quantity", "extra_data"]
 
-        try:
-            cart_item = CartItem.objects.get(cart_id=cart_id, service_id=service.id)
-            cart_item.quantity += quantity
-            cart_item.save()
-            return cart_item
-        except CartItem.DoesNotExist:
-            return CartItem.objects.create(cart_id=cart_id, **validated_data)
+    def validate(self, data):
+        service = data['service']
+        raw_extra_data = data.get('extra_data', {})
+
+        if data.get('extra_data') is None:
+            raise serializers.ValidationError("Please enter the required information.")
+
+        allowed_fields = {field.field_name for field in service.required_fields.all()}
+
+        cleaned_extra_data = {k: v for k, v in raw_extra_data.items() if k in allowed_fields}
+
+        required_fields = service.required_fields.filter(is_required=True)
+        missing = []
+        for field in required_fields:
+            value = cleaned_extra_data.get(field.field_name)
+            if not value or str(value).strip() == '':
+                label = field.label or field.field_name.replace('_', ' ').title()
+                missing.append(label)
+
+        if missing:
+            raise serializers.ValidationError(
+                f"The required fields for the service «{service.name}» are not filled: {', '.join(missing)}"
+            )
+
+        data['extra_data'] = cleaned_extra_data
+        return data
+
+    def create(self, validated_data):
+        cart_pk = self.context.get('cart_pk')
+        service = validated_data.pop('service')
+        quantity = validated_data.pop('quantity', 1)
+        extra_data = validated_data.pop('extra_data', {})
+
+        existing_item = CartItem.objects.filter(
+            cart_id=cart_pk,
+            service=service,
+            extra_data=extra_data
+        ).first()
+
+        if existing_item:
+            existing_item.quantity += quantity
+            existing_item.save()
+            return existing_item
+        else:
+            return CartItem.objects.create(
+                cart_id=cart_pk,
+                service=service,
+                quantity=quantity,
+                extra_data=extra_data
+            )
+
+
+class UpdateCartItemSerializer(serializers.ModelSerializer):
+    extra_data = serializers.JSONField(required=False, default=dict, allow_null=True)
+
+    class Meta:
+        model = CartItem
+        fields = ["quantity", "extra_data"]
+
+    def validate(self, data):
+        service = self.instance.service
+        raw_extra_data = data.get('extra_data', self.instance.extra_data or {})
+
+        if data.get('extra_data') is None:
+            raise serializers.ValidationError("Please enter the required information.")
+
+        allowed_fields = {field.field_name for field in service.required_fields.all()}
+
+        cleaned_extra_data = {k: v for k, v in raw_extra_data.items() if k in allowed_fields}
+
+        required_fields = service.required_fields.filter(is_required=True)
+        missing = []
+        for field in required_fields:
+            value = cleaned_extra_data.get(field.field_name)
+            if not value or str(value).strip() == '':
+                label = field.label or field.field_name.replace('_', ' ').title()
+                missing.append(label)
+
+        if missing:
+            raise serializers.ValidationError(
+                f"The required fields for the service «{service.name}» are not filled: {', '.join(missing)}"
+            )
+
+        data['extra_data'] = cleaned_extra_data
+        return data
+
+    def update(self, instance, validated_data):
+        instance.quantity = validated_data.get('quantity', instance.quantity)
+        instance.extra_data = validated_data.get('extra_data', instance.extra_data)
+        instance.save()
+        return instance
 
 
 class CartItemSerializer(serializers.ModelSerializer):
     service = ServiceSerializer(read_only=True)
     item_total_price = serializers.SerializerMethodField()
+    extra_data = serializers.JSONField(read_only=True)
 
     class Meta:
         model = CartItem
-        fields = ["id", "service", "quantity", "item_total_price"]
+        fields = ["id", "service", "quantity", "item_total_price", "extra_data"]
 
     def get_item_total_price(self, obj):
         return obj.get_item_total_price()
@@ -134,25 +226,39 @@ class OrderForAdminSerializer(serializers.ModelSerializer):
 class OrderCreateSerializer(serializers.Serializer):
     cart_id = serializers.UUIDField()
 
-    def validate_cart_id(self, cart_id):
-        if not Cart.objects.filter(pk=cart_id).exists():
-            raise serializers.ValidationError("There is no cart with this ID.")
-        
-        if CartItem.objects.filter(cart_id=cart_id).count() == 0:
-            raise serializers.ValidationError("Your cart is empty. Add some service to it at first.")
-
-        return cart_id
-    
     def validate(self, data):
-        user = self.context["user"]
+        cart_id = data['cart_id']
+
         try:
-            customer = Customer.objects.get(user=user)
-            if not customer.phone_number:
-                raise serializers.ValidationError(
-                    "You must have a phone number to place an order. Enter your phone number first."
+            cart = Cart.objects.prefetch_related('items__service__required_fields').get(pk=cart_id)
+        except Cart.DoesNotExist:
+            raise serializers.ValidationError("There is no shopping cart with this ID. It may have expired.")
+
+        if not cart.items.exists():
+            raise serializers.ValidationError("The shopping cart is empty. Please add a service first.")
+
+        missing_errors = []
+
+        for item in cart.items.all():
+            service = item.service
+            extra_data = item.extra_data or {}
+            required_fields = service.required_fields.filter(is_required=True)
+            missing = []
+            for field in required_fields:
+                value = extra_data.get(field.field_name)
+                if not value or str(value).strip() == '':
+                    label = field.label or field.field_name.replace('_', ' ').title()
+                    missing.append(label)
+
+            if missing:
+                missing_errors.append(
+                    f"Service «{service.name}»: {', '.join(missing)}"
                 )
-        except Customer.DoesNotExist:
-            raise serializers.ValidationError("Customer account not found.")
+
+        if missing_errors:
+            error_message = "The following mandatory fields in the shopping cart are not filled:\n" + "\n".join(missing_errors)
+            error_message += "\n\nPlease return to the shopping cart and enter the necessary information."
+            raise serializers.ValidationError(error_message)
 
         return data
 
@@ -160,7 +266,6 @@ class OrderCreateSerializer(serializers.Serializer):
         with transaction.atomic():
             cart_id = self.validated_data["cart_id"]
             user = self.context["user"]
-
             customer = Customer.objects.get(user=user)
 
             order = Order(customer=customer, status=Order.ORDER_STATUS_UNPAID)
@@ -171,14 +276,14 @@ class OrderCreateSerializer(serializers.Serializer):
             order_items = []
             for item in cart_items:
                 discounted_price = item.service.get_discounted_price()
-                order_items.append(
-                    OrderItem(
-                        order=order,
-                        service=item.service,
-                        quantity=item.quantity,
-                        price=discounted_price,
-                    )
+                order_item = OrderItem(
+                    order=order,
+                    service=item.service,
+                    quantity=item.quantity,
+                    price=discounted_price,
+                    extra_data=item.extra_data or {}
                 )
+                order_items.append(order_item)
 
             OrderItem.objects.bulk_create(order_items)
 

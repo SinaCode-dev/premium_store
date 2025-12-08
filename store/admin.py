@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.safestring import mark_safe
 
-from .models import Customer, Application, Discount, Service, Comment, Cart, CartItem, Order, OrderItem
+from .models import Customer, Application, Discount, Service, Comment, Cart, CartItem, Order, OrderItem, ServiceField
 
 
 @admin.register(Customer)
@@ -31,11 +31,20 @@ class CommentsInline(admin.TabularInline):
     fields = ["author", "service", "body", "status"]
     extra = 1
 
+@admin.register(ServiceField)
+class ServiceFieldAdmin(admin.ModelAdmin):
+    list_display = ["service", "field_name", "field_type", "is_required", "label"]
+
+
+class ServiceFieldInline(admin.TabularInline):
+    model = ServiceField
+    extra = 1
+
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
     list_display = ["name", "application", "description", "price", "datetime_created", "discounts", "image"]
-    inlines = [CommentsInline]
+    inlines = [CommentsInline, ServiceFieldInline]
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = ("datetime_created", "image_preview")
 
@@ -82,4 +91,15 @@ class OrderAdmin(admin.ModelAdmin):
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ["order", "service", "price"]
+    list_display = ["order", "service", "quantity", "price", "extra_data_preview"]
+
+    def extra_data_preview(self, obj):
+        if not obj.extra_data:
+            return "-"
+        items = []
+        for k, v in obj.extra_data.items():
+            field = ServiceField.objects.filter(service=obj.service, field_name=k).first()
+            label = field.label if field and field.label else k
+            items.append(f"{label}: {v}")
+        return mark_safe("<br>".join(items))
+    extra_data_preview.short_description = "اطلاعات اضافی"

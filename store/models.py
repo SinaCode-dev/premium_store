@@ -1,7 +1,9 @@
-from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.db.models import JSONField
+
+from decimal import Decimal
 
 from phonenumber_field.modelfields import PhoneNumberField
 
@@ -64,6 +66,9 @@ class Service(models.Model):
 
     def __str__(self):
         return self.name
+    
+    def get_required_fields(self):
+        return self.required_fields.filter(is_required=True).values('field_name', 'field_type', 'label')
 
 
 class Comment(models.Model):
@@ -96,12 +101,13 @@ class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items")
     service = models.ForeignKey(Service, on_delete=models.CASCADE)
     quantity = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)])
+    extra_data = models.JSONField(default=dict, blank=True, null=True)
 
     def get_item_total_price(self):
         return self.quantity * self.service.get_discounted_price()
     
     class Meta:
-        unique_together = [['cart', 'service']]
+        unique_together = [['cart', 'service', 'extra_data']]
 
 
 class Order(models.Model):
@@ -122,5 +128,20 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="items")
     service = models.ForeignKey(Service, on_delete=models.PROTECT)
-    price = models.DecimalField(max_digits=5, decimal_places=2)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.PositiveSmallIntegerField(default=1)
+    extra_data = models.JSONField(default=dict, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.service.name} - {self.order.customer}"
+
+
+class ServiceField(models.Model):
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='required_fields')
+    field_name = models.CharField(max_length=100)
+    field_type = models.CharField(max_length=50, choices=[('text', 'Text'), ('password', 'Password'), ('email', 'Email'), ('username', 'Username')])
+    is_required = models.BooleanField(default=True)
+    label = models.CharField(max_length=200, blank=True)
+
+    def __str__(self):
+        return f"{self.service.name} - {self.field_name}"
