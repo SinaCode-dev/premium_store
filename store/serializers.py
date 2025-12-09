@@ -3,6 +3,7 @@ from django.db import transaction
 from django.utils.safestring import mark_safe
 
 from rest_framework import serializers
+from rest_framework.serializers import SlugRelatedField
 
 import re
 
@@ -10,6 +11,12 @@ from .models import Application, Customer, Service, Comment, Cart, CartItem, Ord
 
 
 class ApplicationSerializer(serializers.ModelSerializer):
+    top_service = serializers.SlugRelatedField(
+        slug_field='name',
+        queryset=Service.objects.all(),
+        allow_null=True
+    )
+
     class Meta:
         model = Application
         fields = ["title", "description", "top_service"]
@@ -26,6 +33,11 @@ class ServiceSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(write_only=True, required=False, allow_null=True)
     image_url = serializers.SerializerMethodField()
     required_fields = ServiceFieldSerializer(many=True, read_only=True)
+    discounts = serializers.SlugRelatedField(
+        slug_field='name',
+        queryset=Discount.objects.all(),
+        allow_null=True
+    )
 
     class Meta:
         model = Service
@@ -50,9 +62,11 @@ class ServiceSerializer(serializers.ModelSerializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
+    author = serializers.StringRelatedField()
+
     class Meta:
         model = Comment
-        fields = ["author", "body", "datetime_created"]
+        fields = ["id", "author", "body", "datetime_created"]
         read_only_fields = ["author"]
 
 
