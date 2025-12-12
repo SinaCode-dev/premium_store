@@ -1,4 +1,5 @@
 from django.core.exceptions import PermissionDenied
+from django.core.cache import cache
 from django.db.models import Prefetch
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -8,6 +9,7 @@ from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 
 import requests
+import random
 
 from rest_framework import status
 from rest_framework.decorators import action
@@ -18,12 +20,28 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 from rest_framework.filters import SearchFilter, OrderingFilter
 
+from kavenegar import KavenegarAPI
+
 from .filters import ServiceFilter, OrderFilter
 from .models import Application, Customer, Service, Comment, Cart, CartItem, Order, OrderItem, Discount, ServiceField
 from .paginations import DefaultPagination
 from .permissions import IsAdminOrReadOnly, IsCommentAuthorOrAdmin
-from .serializers import AddCartItemSerializer, ApplicationSerializer, CustomerSerializer, OrderCreateSerializer, OrderForAdminSerializer, ServiceSerializer, CommentSerializer, CartSerializer, CartItemSerializer, OrderSerializer, OrderItemSerializer, DiscountSerializer, UpdateCartItemSerializer, EmptySerializer
+from .serializers import AddCartItemSerializer, ApplicationSerializer, CustomerSerializer, OrderCreateSerializer, OrderForAdminSerializer, ServiceSerializer, CommentSerializer, CartSerializer, CartItemSerializer, OrderSerializer, OrderItemSerializer, DiscountSerializer, UpdateCartItemSerializer, EmptySerializer, VerifySerializer
 
+
+
+def send_sms(phone, message):
+    try:
+        api = KavenegarAPI(settings.KAVENEGAR_API_KEY)
+        params = {
+            'sender': settings.KAVENEGAR_SENDER,
+            'receptor': str(phone),
+            'message': message
+        }
+        response = api.sms_send(params)
+        print("SMS sent:", response)
+    except Exception as e:
+        print("SMS error:", str(e))
 
 
 class ApplicationViewSet(ModelViewSet):
@@ -301,6 +319,11 @@ class CustomerViewSet(GenericViewSet):
     queryset = Customer.objects.all()
     pagination_class = DefaultPagination
 
+    def get_serializer_class(self):
+        if self.action == 'verify_phone':
+            return VerifySerializer
+        return CustomerSerializer
+
     def list(self, request):
         if request.user.is_staff:
             queryset = Customer.objects.select_related("user").all()
@@ -333,5 +356,43 @@ class CustomerViewSet(GenericViewSet):
 
         serializer = self.get_serializer(customer, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+
+        new_phone = serializer.validated_data.get('phone_number')
+        if new_phone:
+            if new_phone == customer.phone_number:
+                return Response(serializer.data)
+            code = str(random.randint(100000, 999999))
+            cache.set(f'pending_phone_{request.user.id}', str(new_phone), 300)
+            cache.set(f'phone_verify_{request.user.id}', code, 300)
+            send_sms(new_phone, f'Your verification code is: {code}')
+            serializer.validated_data.pop('phone_number', None)
+            serializer.save()
+            
+            return Response({
+                'detail': f'Verification code sent to your new phone. Please verify it using {request.build_absolute_uri('/customers/verify-phone/')} to save the number.',
+                'current_data': serializer.data
+            })
+
         serializer.save()
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['POST'], url_path='verify-phone')
+    def verify_phone(self, request):
+        serializer = VerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        code = serializer.validated_data['code']
+
+        stored_code = cache.get(f'phone_verify_{request.user.id}')
+        pending_phone = cache.get(f'pending_phone_{request.user.id}')
+        
+        if stored_code and code == stored_code and pending_phone:
+            customer = Customer.objects.get(user=request.user)
+            customer.phone_number = pending_phone
+            customer.is_phone_verified = True
+            customer.save()
+            cache.delete(f'phone_verify_{request.user.id}')
+            cache.delete(f'pending_phone_{request.user.id}')
+            customer_serializer = CustomerSerializer(customer)
+            return Response({'detail': 'Phone number verified and saved successfully.', 'data': customer_serializer.data}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid or expired code, or no pending phone number.'}, status=status.HTTP_400_BAD_REQUEST)

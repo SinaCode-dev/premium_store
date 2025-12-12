@@ -21,6 +21,7 @@ class Customer(models.Model):
         verbose_name="Phone number",
         help_text="Iranian format phone number(example: 09123456789)",
     )
+    is_phone_verified = models.BooleanField(default=False)
 
     def __str__(self):
         return self.user.username

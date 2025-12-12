@@ -164,3 +164,8 @@ ZARINPAL_REQUEST_URL = 'https://sandbox.zarinpal.com/pg/v4/payment/request.json'
 ZARINPAL_VERIFY_URL = 'https://sandbox.zarinpal.com/pg/v4/payment/verify.json'
 ZARINPAL_START_PAY_URL = 'https://sandbox.zarinpal.com/pg/StartPay/'
 ZARINPAL_CALLBACK_URL = 'http://127.0.0.1:8000/orders/{order_id}/callback/'
+
+
+
+KAVENEGAR_API_KEY = 'HERE_YOU_SHOULD_PASTE_YOUR_OWN_APIKEY'
+KAVENEGAR_SENDER = 'HERE_YOU_SHOULD_PASTE_YOUR_OWN_SENDER'

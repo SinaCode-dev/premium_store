@@ -330,9 +330,13 @@ class CustomerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Customer
-        fields = ['id', 'username', 'email', 'phone_number']
-        read_only_fields = ['id', 'username', 'email']
+        fields = ['id', 'username', 'email', 'phone_number', 'is_phone_verified']
+        read_only_fields = ['id', 'username', 'email', 'is_phone_verified']
 
 
 class EmptySerializer(serializers.Serializer):
     pass
+
+
+class VerifySerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=6, min_length=6)
