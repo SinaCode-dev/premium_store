@@ -49,6 +49,7 @@ class ApplicationViewSet(ModelViewSet):
     serializer_class = ApplicationSerializer
     permission_classes = [IsAdminOrReadOnly]
     pagination_class = DefaultPagination
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
         return Application.objects.select_related("top_service").all()

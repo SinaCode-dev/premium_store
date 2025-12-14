@@ -12,10 +12,12 @@ class ApplicationSerializer(serializers.ModelSerializer):
         queryset=Service.objects.all(),
         allow_null=True
     )
+    image = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
-        fields = ["title", "description", "top_service"]
+        fields = ["title", "description", "top_service", "image", "image_url"]
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -28,6 +30,20 @@ class ApplicationSerializer(serializers.ModelSerializer):
         if value and self.instance and value.application != self.instance:
             raise serializers.ValidationError("The selected premium service must belong to this application.")
         return value
+    
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        path = obj.image.url if obj.image and hasattr(obj.image, 'url') else settings.MEDIA_URL + 'applications/images/default_application.jpg'
+        if request is not None:
+            return request.build_absolute_uri(path)
+        else:
+            base_url = 'http://127.0.0.1:8000'
+            return base_url + path
+    
+    def update(self, instance, validated_data):
+        if 'image' in validated_data and validated_data['image'] is None:
+            validated_data.pop('image')
+        return super().update(instance, validated_data)
 
 
 class ServiceFieldSerializer(serializers.ModelSerializer):

@@ -31,6 +31,7 @@ class Application(models.Model):
     title = models.CharField(max_length=250)
     description = models.TextField()
     top_service = models.ForeignKey('Service', null=True, blank=True, on_delete=models.SET_NULL, related_name='applications')
+    image = models.ImageField(upload_to='applications/images/', null=True, blank=True, default='applications/images/default_application.jpg')
 
     def __str__(self):
         return self.title
