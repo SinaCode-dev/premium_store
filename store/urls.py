@@ -23,8 +23,11 @@ orderitem_router.register("items", views.OrderItemsViewSet, basename="order-item
 discount_services_router = routers.NestedDefaultRouter(router, "discounts", lookup="discount")
 discount_services_router.register("services", views.DiscountServicesViewSet, basename="discount-service")
 
+discount_services_comment_router = routers.NestedDefaultRouter(discount_services_router, "services", lookup="discount_service")
+discount_services_comment_router.register("comments", views.DiscountServicesCommentViewSet, basename="discount-service-comment")
+
 comment_router = routers.NestedDefaultRouter(services_router, "services", lookup="service")
 comment_router.register("comments", views.CommentViewSet, basename="service-comment")
 
 
-urlpatterns = router.urls + services_router.urls + comment_router.urls + cartitem_router.urls + orderitem_router.urls + discount_services_router.urls
+urlpatterns = router.urls + services_router.urls + comment_router.urls + cartitem_router.urls + orderitem_router.urls + discount_services_router.urls + discount_services_comment_router.urls

@@ -315,6 +315,25 @@ class DiscountServicesViewSet(ModelViewSet):
         return Service.objects.filter(discounts_id=discount_pk).select_related('discounts').prefetch_related('required_fields')
 
 
+class DiscountServicesCommentViewSet(ModelViewSet):
+    serializer_class = CommentSerializer
+    pagination_class = DefaultPagination
+
+    def get_queryset(self):
+        discount_service_pk = self.kwargs["discount_service_pk"]
+        discount_pk = self.kwargs["discount_pk"]
+        return Comment.objects.select_related("author").filter(service_id=discount_service_pk, service__discounts__id=discount_pk).all()
+
+    def perform_create(self, serializer):
+        service = get_object_or_404(Service, pk=self.kwargs['discount_service_pk'])
+        serializer.save(author=self.request.user, service=service)
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsCommentAuthorOrAdmin()]
+
+
 class CustomerViewSet(GenericViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = CustomerSerializer
