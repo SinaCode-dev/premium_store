@@ -45,3 +45,4 @@ Run the project
 ```bash
 docker compose up --build
 ```
+You can use [ModHeader](https://modheader.com/) for login & signup.
